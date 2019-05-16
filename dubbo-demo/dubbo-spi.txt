@@ -1,0 +1,25 @@
+dubbo spi
+目的：  获取一个实现类的对象
+途径： ExtensionLoader.getExtension(String name);
+
+实现方式
+getExtensionLoader(Class<T> type)  从缓存中获取一个ExtensionLoader对象，  如果没有就是为该接口new一个ExtensionLoader对象，  然后缓存起来
+getAdaptiveExtension()             获取一个扩展装饰类的对象， 这个类有一个规则， 如果它没有一个@Adaptive注解， 就动态创建一个装饰类， 例如Protocol$Adaptive对象
+getExtension(String name)          获取一个对象。
+
+
+
+---------------------ExtensionLoader.getExtensionLoader(Class<T> type)---------------------
+ExtensionLoader.getExtensionLoader(Container.class);
+  -->EXTENSION_LOADERS.get(type)   //从缓存中获取一个ExtensionLoader, 发现没有， 开始创建一个ExtensionLoader对象
+  -->this.type = type;
+  -->objectFactory = (type == ExtensionFactory.class ? null : ExtensionLoader.getExtensionLoader(ExtensionFactory.class).getAdaptiveExtension());
+==================================================================================================================================================================
+    -->ExtensionLoader.getExtensionLoader(ExtensionFactory.class).getAdaptiveExtension()   // 去缓存中找type=ExtensionFactory的ExtensionLoader， 发现没有开始创建新的ExtensionLoader
+      -->this.type = type;
+      -->objectFactory = (type == ExtensionFactory.class ? null : ExtensionLoader.getExtensionLoader(ExtensionFactory.class).getAdaptiveExtension());    //这里返回null
+
+执行以上代码完成了2个属性的初始化
+1： 每一个ExtensionLoader都包含两个值 type和objectFactory
+    Class<?> type;   构造器初始化时需要用到的接口名
+    ExtensionFactory objectFactory;

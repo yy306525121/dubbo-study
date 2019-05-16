@@ -1,12 +1,12 @@
 /*
  * Copyright 1999-2011 Alibaba Group.
- *  
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *  
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- *  
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -50,7 +50,7 @@ import com.alibaba.dubbo.rpc.support.ProtocolUtils;
 
 /**
  * ServiceConfig
- * 
+ *
  * @author william.liangf
  * @export
  */
@@ -58,8 +58,9 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
 
     private static final long   serialVersionUID = 3033787999037024738L;
 
-    private static final Protocol protocol = ExtensionLoader.getExtensionLoader(Protocol.class).getAdaptiveExtension();
-    
+    private static final Protocol protocol = ExtensionLoader.getExtensionLoader(Protocol.class)
+            .getAdaptiveExtension();
+
     private static final ProxyFactory proxyFactory = ExtensionLoader.getExtensionLoader(ProxyFactory.class).getAdaptiveExtension();
 
     private static final Map<String, Integer> RANDOM_PORT_MAP = new HashMap<String, Integer>();
@@ -81,13 +82,13 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
     private ProviderConfig provider;
 
     private final List<URL> urls = new ArrayList<URL>();
-    
+
     private final List<Exporter<?>> exporters = new ArrayList<Exporter<?>>();
 
     private transient volatile boolean exported;
 
 	private transient volatile boolean unexported;
-    
+
     private volatile String generic;
 
     public ServiceConfig() {
@@ -104,7 +105,7 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
     public List<URL> toUrls() {
         return urls;
     }
-    
+
     @Parameter(excluded = true)
     public boolean isExported() {
 		return exported;
@@ -144,7 +145,7 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
             doExport();
         }
     }
-    
+
     protected synchronized void doExport() {
         if (unexported) {
             throw new IllegalStateException("Already unexported!");
@@ -276,7 +277,7 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
     	}
         unexported = true;
     }
-    
+
     @SuppressWarnings({ "unchecked", "rawtypes" })
     private void doExportUrls() {
         List<URL> registryURLs = loadRegistries(true);
@@ -575,7 +576,7 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
             id = interfaceName;
         }
     }
-    
+
     public void setInterface(Class<?> interfaceClass) {
         if (interfaceClass != null && ! interfaceClass.isInterface()) {
             throw new IllegalStateException("The interface class " + interfaceClass + " is not a interface!");
@@ -631,11 +632,11 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
     public void setProvider(ProviderConfig provider) {
         this.provider = provider;
     }
-    
+
     public List<URL> getExportedUrls(){
         return urls;
     }
-    
+
     // ======== Deprecated ========
 
     /**
@@ -665,7 +666,7 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
         }
         return protocols;
     }
-    
+
     @Deprecated
     private static final List<ProviderConfig> convertProtocolToProvider(List<ProtocolConfig> protocols) {
         if (protocols == null || protocols.size() == 0) {
@@ -677,7 +678,7 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
         }
         return providers;
     }
-    
+
     @Deprecated
     private static final ProtocolConfig convertProviderToProtocol(ProviderConfig provider) {
         ProtocolConfig protocol = new ProtocolConfig();
@@ -693,7 +694,7 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
         protocol.setParameters(provider.getParameters());
         return protocol;
     }
-    
+
     @Deprecated
     private static final ProviderConfig convertProtocolToProvider(ProtocolConfig protocol) {
         ProviderConfig provider = new ProviderConfig();
