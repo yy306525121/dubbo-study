@@ -81,12 +81,21 @@ public class ExtensionLoader<T> {
 
     private final ExtensionFactory objectFactory;
 
+    /**
+     * 缓存spi信息(不缓存带有Adaptive注解的spi实现)
+     */
     private final ConcurrentMap<Class<?>, String> cachedNames = new ConcurrentHashMap<Class<?>, String>();
 
+    /**
+     * 缓存spi信息(不缓存带有Adaptive注解的spi实现)
+     */
     private final Holder<Map<String, Class<?>>> cachedClasses = new Holder<Map<String,Class<?>>>();
 
     private final Map<String, Activate> cachedActivates = new ConcurrentHashMap<String, Activate>();
 
+    /**
+     * 如果type类中有@Adaptive注解, 此变量有值
+     */
     private volatile Class<?> cachedAdaptiveClass = null;
 
     private final ConcurrentMap<String, Holder<Object>> cachedInstances = new ConcurrentHashMap<String, Holder<Object>>();
@@ -295,6 +304,7 @@ public class ExtensionLoader<T> {
 
     /**
      * 返回指定名字的扩展。如果指定名字的扩展不存在，则抛异常 {@link IllegalStateException}.
+     * 从cachedInstances中取数据, 如果没有, 就创建新的
      *
      * @param name
      * @return
@@ -443,6 +453,13 @@ public class ExtensionLoader<T> {
         }
     }
 
+    /**
+     * 获取一个当前type的扩展装饰类的对象, 并将该对象存入cachedAdaptiveInstance
+     * 如果该类没有@Adaptive注解, 就动态创建一个装饰类,
+     * 如果有, 说明这个类本身就是一个装饰类, 不需要动态创建
+     * 如果这个注解加在方法上说明需要动态创建
+     * @return
+     */
     @SuppressWarnings("unchecked")
     public T getAdaptiveExtension() {
         Object instance = cachedAdaptiveInstance.get();
@@ -508,6 +525,8 @@ public class ExtensionLoader<T> {
             }
             injectExtension(instance);
             Set<Class<?>> wrapperClasses = cachedWrapperClasses;
+
+            // 这里实现了Dubbo自己的AOP
             if (wrapperClasses != null && wrapperClasses.size() > 0) {
                 for (Class<?> wrapperClass : wrapperClasses) {
                     instance = injectExtension((T) wrapperClass.getConstructor(type).newInstance(instance));
@@ -520,6 +539,12 @@ public class ExtensionLoader<T> {
         }
     }
 
+    /**
+     * dubbo的依赖注入实现,
+     * 自动注入依次去SPI实现和Spring Context中取查找需要注入的值
+     * @param instance
+     * @return
+     */
     private T injectExtension(T instance) {
         try {
             if (objectFactory != null) {
@@ -547,6 +572,11 @@ public class ExtensionLoader<T> {
         return instance;
     }
 
+    /**
+     * 加载spi配置文件中指定的实现类
+     * @param name
+     * @return
+     */
 	private Class<?> getExtensionClass(String name) {
 	    if (type == null)
 	        throw new IllegalArgumentException("Extension type == null");
@@ -572,7 +602,12 @@ public class ExtensionLoader<T> {
         return classes;
 	}
 
-    // 此方法已经getExtensionClasses方法同步过。
+
+    /**
+     * 加载spi实现
+     * 此方法已经getExtensionClasses方法同步过。
+     * @return
+     */
     private Map<String, Class<?>> loadExtensionClasses() {
         final SPI defaultAnnotation = type.getAnnotation(SPI.class);
         if(defaultAnnotation != null) {
@@ -594,6 +629,12 @@ public class ExtensionLoader<T> {
         return extensionClasses;
     }
 
+    /**
+     * 根据当前type类型去dir目录下查找同名文件,
+     * 并将文件中的信息缓存到变量cachedAdaptiveClass中
+     * @param extensionClasses
+     * @param dir
+     */
     private void loadFile(Map<String, Class<?>> extensionClasses, String dir) {
         String fileName = dir + type.getName();
         try {
@@ -743,6 +784,9 @@ public class ExtensionLoader<T> {
         StringBuilder codeBuidler = new StringBuilder();
         Method[] methods = type.getMethods();
         boolean hasAdaptiveAnnotation = false;
+        /**
+         * 判断接口中是否至少存在一个含有Adaptive注解的方法
+         */
         for(Method m : methods) {
             if(m.isAnnotationPresent(Adaptive.class)) {
                 hasAdaptiveAnnotation = true;
@@ -765,11 +809,13 @@ public class ExtensionLoader<T> {
             Adaptive adaptiveAnnotation = method.getAnnotation(Adaptive.class);
             StringBuilder code = new StringBuilder(512);
             if (adaptiveAnnotation == null) {
+                // 无 Adaptive 注解方法代码生成逻辑, 直接抛出一个UnsupportedOperationException异常
                 code.append("throw new UnsupportedOperationException(\"method ")
                         .append(method.toString()).append(" of interface ")
                         .append(type.getName()).append(" is not adaptive method!\");");
             } else {
                 int urlTypeIndex = -1;
+                // 遍历参数列表，确定 URL 参数位置
                 for (int i = 0; i < pts.length; ++i) {
                     if (pts[i].equals(URL.class)) {
                         urlTypeIndex = i;
@@ -779,10 +825,14 @@ public class ExtensionLoader<T> {
                 // 有类型为URL的参数
                 if (urlTypeIndex != -1) {
                     // Null Point check
+                    // 为 URL 类型参数生成判空代码，格式如下：
+                    // if (arg + urlTypeIndex == null)
+                    //     throw new IllegalArgumentException("url == null");
                     String s = String.format("\nif (arg%d == null) throw new IllegalArgumentException(\"url == null\");",
                                     urlTypeIndex);
                     code.append(s);
 
+                    // 为 URL 类型参数生成赋值代码，形如 URL url = arg1
                     s = String.format("\n%s url = arg%d;", URL.class.getName(), urlTypeIndex);
                     code.append(s);
                 }
@@ -792,10 +842,18 @@ public class ExtensionLoader<T> {
 
                     // 找到参数的URL属性
                     LBL_PTS:
+                    // 遍历方法的参数类型列表
                     for (int i = 0; i < pts.length; ++i) {
+                        // 获取某一类型参数的全部方法
                         Method[] ms = pts[i].getMethods();
+                        // 遍历方法列表，寻找可返回 URL 的 getter 方法
                         for (Method m : ms) {
                             String name = m.getName();
+                            // 1. 方法名以 get 开头，或方法名大于3个字符
+                            // 2. 方法的访问权限为 public
+                            // 3. 非静态方法
+                            // 4. 方法参数数量为0
+                            // 5. 方法返回值类型为 URL
                             if ((name.startsWith("get") || name.length() > 3)
                                     && Modifier.isPublic(m.getModifiers())
                                     && !Modifier.isStatic(m.getModifiers())
@@ -803,23 +861,35 @@ public class ExtensionLoader<T> {
                                     && m.getReturnType() == URL.class) {
                                 urlTypeIndex = i;
                                 attribMethod = name;
+                                // 结束 for (int i = 0; i < pts.length; ++i) 循环
                                 break LBL_PTS;
                             }
                         }
                     }
                     if(attribMethod == null) {
+                        // 如果所有参数中均不包含可返回 URL 的 getter 方法，则抛出异常
                         throw new IllegalStateException("fail to create adative class for interface " + type.getName()
                         		+ ": not found url parameter or url attribute in parameters of method " + method.getName());
                     }
 
                     // Null point check
+                    // 为可返回 URL 的参数生成判空代码，格式如下：
+                    // if (arg + urlTypeIndex == null)
+                    //     throw new IllegalArgumentException("参数全限定名 + argument == null");
                     String s = String.format("\nif (arg%d == null) throw new IllegalArgumentException(\"%s argument == null\");",
                                     urlTypeIndex, pts[urlTypeIndex].getName());
                     code.append(s);
+
+                    // 为 getter 方法返回的 URL 生成判空代码，格式如下：
+                    // if (argN.getter方法名() == null)
+                    //     throw new IllegalArgumentException(参数全限定名 + argument getUrl() == null);
                     s = String.format("\nif (arg%d.%s() == null) throw new IllegalArgumentException(\"%s argument %s() == null\");",
                                     urlTypeIndex, attribMethod, pts[urlTypeIndex].getName(), attribMethod);
                     code.append(s);
 
+                    // 生成赋值语句，格式如下：
+                    // URL全限定名 url = argN.getter方法名()，比如
+                    // com.alibaba.dubbo.common.URL url = invoker.getUrl();
                     s = String.format("%s url = arg%d.%s();",URL.class.getName(), urlTypeIndex, attribMethod);
                     code.append(s);
                 }
