@@ -88,6 +88,7 @@ public class ProtocolFilterWrapper implements Protocol {
                     }
 
                     public Result invoke(Invocation invocation) throws RpcException {
+                        // 这里构建了一个责任链传递调用, 之后调用invoker的invoke方法的话会依次掉用这里的每个filters
                         return filter.invoke(next, invocation);
                     }
 
